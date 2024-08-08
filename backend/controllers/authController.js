@@ -1,5 +1,6 @@
 import catchAsyncError from "../middlewares/catchAsyncError.js";
 import User from "../models/user.js";
+import { delete_file, upload_file } from "../utils/cloudinary.js";
 import { getResetPasswordTemplate } from "../utils/emailTemplate.js";
 import ErrorHandler from "../utils/errorHandler.js";
 import sendEmail from "../utils/sendMail.js";
@@ -62,7 +63,7 @@ export const forgotPassword=catchAsyncError(async(req,res,next)=>{
     await user.save();
 
 
-    const resetUrl=`${process.env.FRONTEND_URL}/api/v1/password/reset/${resetToken}`
+    const resetUrl=`${process.env.FRONTEND_URL}/password/reset/${resetToken}`
 
 
     const message=getResetPasswordTemplate(user?.name,resetUrl);
@@ -206,6 +207,23 @@ export const deleteUser=catchAsyncError(async(req,res,next)=>{
 
     res.status(200).json({
         success:true
+    })
+})
+
+export const uploadAvatar=catchAsyncError(async(req,res,next)=>{
+    
+    const avatarResponse=await upload_file(req.body.avatar,"ShopME/avatar")
+
+    if(req?.user?.avatar?.url){
+        await delete_file(req?.user?.avatar?.public_id)
+    }
+
+    const user=await User.findByIdAndUpdate(req?.user?._id,{
+        avatar:avatarResponse
+    })
+
+    res.status(200).json({
+        user
     })
 })
 
