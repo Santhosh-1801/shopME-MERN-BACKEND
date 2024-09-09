@@ -19,7 +19,9 @@ process.on('uncaughtException',(err)=>{
 dotenv.config({path:"backend/config/config.env"})
 
 connectDatabase();
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb',verify:(req,res,buf)=>{
+    req.rawBody=buf.toString()
+}}));
 app.use(cookieParser())
 app.use("/api/v1",productRoutes)
 app.use("/api/v1",authRoutes) 

@@ -1,7 +1,9 @@
 import catchAsyncError from "../middlewares/catchAsyncError.js";
 import Product from "../models/product.js"
+import Order from "../models/order.js"
 import APIFilters from "../utils/apiFilter.js";
 import ErrorHandler from "../utils/errorHandler.js";
+import {upload_file,delete_file} from "../utils/cloudinary.js"
 
 
 export const getProducts=catchAsyncError(async(req,res)=>{
@@ -33,7 +35,7 @@ export const newProduct=catchAsyncError(async(req,res)=>{
 });
 
 export const getSingleProduct=catchAsyncError(async(req,res,next)=>{
-    const product=await Product.findById(req?.params?.id);
+    const product=await Product.findById(req?.params?.id).populate('reviews.user');
 
     if(!product){
         return next(new ErrorHandler("Product not found",404));
@@ -42,6 +44,14 @@ export const getSingleProduct=catchAsyncError(async(req,res,next)=>{
         product
     })
 });
+
+export const getAdminProducts=catchAsyncError(async(req,res,next)=>{
+    const products=await Product.find()
+    res.status(200).json({
+        products
+    })
+});
+
 export const updateProduct=catchAsyncError(async(req,res,next)=>{
     let product=await Product.findById(req?.params?.id);
 
@@ -56,11 +66,35 @@ export const updateProduct=catchAsyncError(async(req,res,next)=>{
     })
 });
 
+export const uploadProductImages=catchAsyncError(async(req,res,next)=>{
+    let product=await Product.findById(req?.params?.id);
+
+    if(!product){
+        return next(new ErrorHandler("Product not found",404));
+    }
+
+    const uploader=async(image)=>upload_file(image,"ShopME/products")
+
+    const urls=await Promise.all((req?.body?.images).map(uploader))
+
+    product?.images?.push(...urls)
+
+    await product?.save()
+        
+    res.status(200).json({
+        product
+    })
+});
+
 export const deleteProduct=catchAsyncError(async(req,res,next)=>{
     let product=await Product.findById(req?.params?.id);
 
     if(!product){
         return next(new ErrorHandler("Product not found",404));
+    }
+    for(let i=0;i<product?.images?.length;i++)
+    {
+        await delete_file(product?.images[i].public_id)
     }
     await Product.deleteOne();
     res.status(200).json({
@@ -108,7 +142,7 @@ export const createProductReview=catchAsyncError(async(req,res,next)=>{
 
 
 export const getProductReviews=catchAsyncError(async(req,res,next)=>{
-    const product=await Product.findById(req.query.id);
+    const product=await Product.findById(req.query.id).populate('reviews.user');
 
     if(!product){
         return next(new ErrorHandler("Product not found",404));
@@ -138,5 +172,42 @@ export const deleteReview=catchAsyncError(async(req,res,next)=>{
         success: true,
         product
     })
+});
+
+export const canUserReview=catchAsyncError(async(req,res,next)=>{
+    
+    const orders=await Order.find({
+        user:req.user._id,
+        "orderItems.product":req.query.productId,
+    });
+
+    if(orders.length === 0){
+        return res.status(200).json({
+            canReview:false
+        })
+    }
+
+    res.status(200).json({
+        canReview:true
+    })
+});
+
+export const deleteProductImage=catchAsyncError(async(req,res,next)=>{
+    let product=await Product.findById(req?.params?.id);
+
+    if(!product){
+        return next(new ErrorHandler("Product not found",404));
+    }
+
+   const isDeleted=await delete_file(req.body.imgId)
+
+   if(isDeleted){
+    product.images=product?.images?.filter((img)=>img.public_id!==req.body.imgId)
+   }
+   await product?.save();
+
+   res.status(200).json({
+    product
+   })
 });
 
